@@ -1,0 +1,142 @@
+---
+title: "Predictive Modeling of Patient Risk Profiles"
+author: "Piotr Banaś"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    theme: flatly
+    highlight: tango
+editor_options: 
+  chunk_output_type: console
+---
+
+# 1. Configuration of our project
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+    echo = TRUE,
+    message = FALSE,
+    warning = FALSE
+)
+library(tidyverse)
+library(tidytuesdayR)
+library(dplyr)
+```
+
+# 2. Data download and validation
+
+```{r dataset_download}
+# dataset download
+tidy_tuesday_dataset <- tt_load('2023-10-24')
+data_frame <- tidy_tuesday_dataset$patient_risk_profiles
+
+# data verification whether everything has loaded appropriately
+dim(data_frame)
+head(data_frame)
+```
+
+#3 Data cleaning
+
+```{r data_cleaning}
+str(data_frame) # information about structure of our dataset
+lack_of_data <- sum(is.na(data_frame)) # number of blank spaces
+ncol(data_frame)
+nrow(data_frame)
+```
+
+# 3. Data engineering
+
+```{r data_engineering}
+  #Adding new columns to our dataset, which will be useful in creating models, charts etc.
+data_frame <- data_frame %>%
+  mutate( 
+    # the mean value from the particular age group
+    age_midpoint_value = case_when(
+      `age group:  10 -  14` == 1 ~ 12,
+      `age group:  15 -  19` == 1 ~ 17,
+      `age group:  20 -  24` == 1 ~ 22,
+      `age group:  65 -  69` == 1 ~ 67,
+      `age group:  40 -  44` == 1 ~ 42,
+      `age group:  45 -  49` == 1 ~ 47,
+      `age group:  55 -  59` == 1 ~ 57,
+      `age group:  85 -  89` == 1 ~ 87,
+      `age group:  75 -  79` == 1 ~ 77,
+      `age group:   5 -   9` == 1 ~ 7,
+      `age group:  25 -  29` == 1 ~ 27,
+      `age group:   0 -   4` == 1 ~ 2,
+      `age group:  70 -  74` == 1 ~ 72,
+      `age group:  50 -  54` == 1 ~ 52,
+      `age group:  60 -  64` == 1 ~ 62,
+      `age group:  35 -  39` == 1 ~ 37,
+      `age group:  30 -  34` == 1 ~ 32,
+      `age group:  80 -  84` == 1 ~ 82,
+      `age group:  90 -  94` == 1 ~ 92
+    ), 
+    
+    age_category = case_when(
+      # division into particular life period categories
+      age_midpoint_value < 18 ~ "Child/Teenager",
+      age_midpoint_value >= 18 & age_midpoint_value <= 34 ~ "Young Adult",
+      age_midpoint_value >= 35 & age_midpoint_value <= 49 ~ "Middle Age",
+      age_midpoint_value >= 50 & age_midpoint_value <= 64 ~ "Mature Adult",
+      age_midpoint_value >= 65 & age_midpoint_value <= 79 ~ "Senior",
+      age_midpoint_value >= 80 ~ "Elderly"
+    ),
+    
+    # how many medications a particular person had been taking in prior year
+    total_medications = rowSums(across(c(contains("exposures"), contains("Antibiotics"), 
+                                        `STEROIDS in prior year`, `Opioids in prior year`, 
+                                        `ANTIEPILEPTICS in prior year`, `HORMONAL CONTRACEPTIVES in prior year`)), na.rm = TRUE),
+    
+    # number of chronic diseases in prior year
+    chronic_diseases = rowSums(across(c(`Hypertension in prior year`, 
+                                       `Type 2 Diabetes Mellitus (DM), with no type 1 or secondary DM in prior year`, 
+                                       `Heart failure in prior year`, 
+                                       `Any cancer (excl. prostate cancer and benign cancer) in prior year`, 
+                                       `Chronic obstructive pulmonary disease (COPD) in prior year`, 
+                                       `Anemia in prior year`)), na.rm = TRUE),
+    
+    # A specific count of cardiovascular-related diagnoses in prior year for an inpatient
+    cicrulatory_system_score = rowSums(across(c(`Heart failure in prior year`, `Hypertension in prior year`, 
+                                               `Coronary artery disease (CAD) in prior year`, 
+                                               `Angina events in prior year`, `Atrial Fibrillation, incident in prior year`)), na.rm = TRUE),
+    
+    # A cumulative count of psychiatric and behavioral health conditions, including Anxiety, Major Depression, Alcoholism, and Psychotic disorders in prior year
+    mental_health = rowSums(across(c(`Occurrence of Anxiety in prior year`, 
+                                    `Major depressive disorder, with NO occurrence of certain psychiatric disorder in prior year`, 
+                                    `Occurrence of Alcoholism in prior year`, `Psychotic disorder in prior year`)), na.rm = TRUE),
+    
+    # Total count of metabolic system disorders
+    metabolic_system_sum = rowSums(across(c(`Type 2 Diabetes Mellitus (DM), with no type 1 or secondary DM in prior year`, 
+                                           `Hyperlipidemia in prior year`, `Obesity in prior year`)), na.rm = TRUE),
+    
+    # check whether the simultaneous presence of Diabetes, Hypertension, and Hyperlipidemia occurs
+    metabolic_syndrome = ifelse(`Type 2 Diabetes Mellitus (DM), with no type 1 or secondary DM in prior year` == 1 & 
+                                `Hypertension in prior year` == 1 & `Hyperlipidemia in prior year` == 1, 1, 0),
+    
+    # number of acute medical events such as Sepsis, Stroke, Acute Kidney Injury, and Respiratory Failure in prior year
+    acute_occured_events = rowSums(across(c(`Sepsis in prior year`, `Acute Kidney Injury (AKI) in prior year`, 
+                                           `Hemorrhagic stroke in an inpatient setting in prior year`, 
+                                           `Non-hemorrhagic Stroke in an inpatient setting in prior year`, 
+                                           `Acute Respiratory failure in prior year`)), na.rm = TRUE),
+    
+    # Compares the total number of medications to the number of sick organ systems.
+    # This measures how aggressively the patient is being medically treated.
+    polypharmacy_possibility = ifelse(total_medications >= 5, 1, 0),
+    
+    cardiological_and_mental_coincidence = ifelse(cicrulatory_system_score > 0 & mental_health > 0, 1, 0),
+    
+    treatment_intensity = total_medications / ((cicrulatory_system_score > 0) + (mental_health > 0) + (metabolic_system_sum > 0) + 1)
+  )
+dim(data_frame) #checking whether everything works
+nrow(data_frame)
+ncol(data_frame)
+rownames(data_frame)
+colnames(data_frame)
+str(data_frame)
+head(data_frame)
+data_frame %>%
+  pull(total_medications)
+```
