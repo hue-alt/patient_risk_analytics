@@ -12,6 +12,7 @@ editor_options:
   chunk_output_type: console
 ---
 
+<<<<<<< HEAD
 # 1. Configuration of our project
 
 ```{r setup, include = FALSE}
@@ -139,4 +140,25 @@ str(data_frame)
 head(data_frame)
 data_frame %>%
   pull(total_medications)
+=======
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+	echo = TRUE,
+	message = TRUE,
+	warning = TRUE
+)
+library(tidyverse)
+library(tidytuesdayR)
+
+#dataset download
+tidy_tuesday_dataset <- tt_load('2023-10-24')
+
+data_frame <- tidy_tuesday_dataset$patient_risk_profiles
+
+#data verification whether everything has loaded appropriately
+dim(data_frame)
+head(data_frame)
+#ncol(data_frame)
+#nrow(data_frame)
+>>>>>>> c5050cea827e858cf7a382b0de240093feac4651
 ```
