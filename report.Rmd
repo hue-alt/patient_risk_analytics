@@ -11,8 +11,6 @@ output:
 editor_options: 
   chunk_output_type: console
 ---
-
-<<<<<<< HEAD
 # 1. Configuration of our project
 
 ```{r setup, include = FALSE}
@@ -160,5 +158,4 @@ dim(data_frame)
 head(data_frame)
 #ncol(data_frame)
 #nrow(data_frame)
->>>>>>> c5050cea827e858cf7a382b0de240093feac4651
 ```
