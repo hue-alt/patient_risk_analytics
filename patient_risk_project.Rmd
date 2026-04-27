@@ -1,0 +1,75 @@
+---
+title: "patient_risk_analtyics-report"
+author: "Piotr Banaś, Jan Krupa"
+date: "2026-04-27"
+output: html_document
+---
+
+```{r part_1}
+#1. Data import
+library(tidytuesdayR)
+library(tidyverse)
+
+data_import <- tt_load('2023-10-24')
+patients_data <- data_import$patient_risk_profiles
+head(patients_data)
+```
+
+```{r part_2}
+#2. Preliminary checks
+gender_data_frame <- patients_data %>% 
+  select(personId, contains("FEMALE"), contains("MALE")) %>%
+  filter(`Sex = FEMALE` == `Sex = MALE`) %>%
+  head(100)
+
+print(gender_data_frame)
+```
+
+```{r part_3}
+#3.1 - removal of problematic rows
+patients_data <- patients_data %>% 
+  filter(`Sex = FEMALE` != `sex = MALE`)
+
+nrow(patients_data) #if 91 - ok
+```
+
+```{r part_4}
+#4.1 - adding new column regarding life period(nazwe dalem tymaczasowe, do przegadania pozniej jakie dac konkretne, mozesz ty dac nie ma problemu)
+patients_data <- patients_data %>%
+  mutate(life_period = case_when(
+    `age group:   0 -   4` == 1 | `age group:   5 -   9` == 1 | 
+    `age group:  10 -  14` == 1 | `age group:  15 -  19` == 1 ~ "0-19",
+    
+    `age group:  20 -  24` == 1 | `age group:  25 -  29` == 1 | 
+    `age group:  30 -  34` == 1 | `age group:  35 -  39` == 1 ~ "20-39",
+    
+    `age group:  40 -  44` == 1 | `age group:  45 -  49` == 1 | 
+    `age group:  50 -  54` == 1 | `age group:  55 -  59` == 1 | 
+    `age group:  60 -  64` == 1 ~ "40-64",
+  
+    `age group:  65 -  69` == 1 | `age group:  70 -  74` == 1 | 
+    `age group:  75 -  79` == 1 | `age group:  80 -  84` == 1 | 
+    `age group:  85 -  89` == 1 | `age group:  90 -  94` == 1 ~ "65+"
+  ))
+
+ncol(patients_data)
+print(patients_data)
+```
+
+```{r part_5}
+#5.1 - adding a polipharmacy index
+patients_data <- patients_data %>%
+  mutate(
+    how_any_drugs = rowSums(across(c(
+      contains("Antibiotics"), 
+      `Corticosteroids in prior year`,
+      `NSAIDs in prior year`,
+      `Acetaminophen exposures in prior year`,
+      `Aspirin exposures in prior year`,
+      `Opioids in prior year`,
+      `ANTIEPILEPTICS in prior year`,
+      `HORMONAL CONTRACEPTIVES in prior year`
+    )), na.rm = TRUE),
+    polypharmacy = as.integer(drug_score >= 5)
+  )
+```
