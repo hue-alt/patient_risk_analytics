@@ -21,11 +21,24 @@ gender_data_frame <- patients_data %>%
   head(100)
 print(gender_data_frame)
 
-#3.1 - removal of problematic rows
+#3.1 - removal of problematic rows by Sex
 patients_data <- patients_data %>% 
   filter(`Sex = FEMALE` != `Sex = MALE`)
 nrow(patients_data)
 
+#3.2 - removal of problematic rows by age
+age_check <- patients_data %>% 
+  mutate(age_sum = rowSums(across(starts_with("age group")), na.rm = TRUE)) %>%
+  filter(age_sum != 1)
+
+print(paste("WRONG:" , nrow(age_check)))
+
+patients_data <- patients_data %>% 
+  mutate(age_sum = rowSums(across(starts_with("age group")), na.rm = TRUE)) %>%
+  filter(age_sum == 1) %>%
+  select(-age_sum)
+
+nrow(patients_data)
 #4.1 - adding new column regarding life period
 patients_data <- patients_data %>%
   mutate(life_period = case_when(
